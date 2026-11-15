@@ -8,7 +8,7 @@ import streamlit as st
 
 import rag_core
 
-st.title("📄 Chat mit dem RAG-Leitfaden")
+st.title("📄 Chat mit dem RAG-Leitfaden - Let's go")
 
 
 # [K1, K3] Den teuren, nicht-persönlichen Teil (Index) einmal pro Server laden und teilen.
