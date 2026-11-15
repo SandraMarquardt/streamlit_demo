@@ -1,0 +1,8 @@
+# Secrets: niemals committen
+.env
+.streamlit/secrets.toml
+.DS_Store
+
+# Python-Artefakte
+__pycache__/
+*.pyc
