@@ -1,56 +1,77 @@
-# Day 5 starter (trainer notes)
+# PDF-Chat – Deployment-Ordner: DEMO Projekt
 
-Runs entirely in the course `.venv`: no new venv, no new packages (only streamlit, numpy, pypdf,
-python-dotenv, langchain-openrouter / langchain-anthropic, all in `uv.lock`).
+Zwei Streamlit-Apps zum RAG-Leitfaden, bereit für Streamlit Community Cloud:
 
-```
-tag5_starter/
-├── ANLEITUNG.md          # participant handout (German). Stays OUTSIDE the app folder
-├── tag5_einrichten.py    # copies the kit to unsere_skripte/tag5_app/ (flags: --gruppe-b, --messung, --fallback, --loesung)
-├── kit/                  # what every participant gets at the start
-│   ├── rag_core.py       # VERSION 1: Assistant(index=None) with memory, no counters, no log lines
-│   ├── opencode.json     # pins the Open Code model: openrouter/anthropic/claude-haiku-5.5
-│   ├── check_setup.py    # green/red pre-flight check
-│   └── AGENTS.md         # environment facts + neutral API description, no framework rules
-├── messung/rag_core.py   # VERSION 2: same API + stats() + "[rag_core] INFO ..." lines. Installed with --messung
-├── gruppe_b/             # Anfrage_Weiterbildung.md (stakeholder brief), PRD_vorlage.md, wireframe.png
-├── fallback/naive_app.py # comparison app (caches the whole Assistant). --fallback, installs version 2
-├── loesung/fixed_app.py  # reference solution. --loesung after the rebuild round, installs version 2
-└── trainer/              # stresstest.py (AppTest), interrupt_test.py (check 5, Playwright), abnahme_checkliste.md
-```
+| Datei | Was | Deployen mit |
+| --- | --- | --- |
+| `app.py` | Referenzlösung (besteht den Stresstest) | `OPENROUTER_API_KEY` (oder `ANTHROPIC_API_KEY`) |
+| `naive_app.py` | Vergleichs-App mit typischen Agenten-Fehlern | **nur** `RAG_MOCK = "1"` |
+| `rag_core.py` | RAG-Backend (Version 2, mit Zählern und Log-Zeilen) | – |
+| `data/rag_leitfaden.pdf` | Das Dokument | – |
 
-The PDF is not duplicated: the setup script copies
-`scripts/M07_VectorDB_RAG/data/Retrieval Augmented Generation.pdf` to `tag5_app/data/rag_leitfaden.pdf`.
+## Lokal starten
 
-## Participant commands (from the repo root, `.venv` active)
+Aus diesem Ordner:
 
 ```bash
-git pull
-python scripts/M10_Deployment/tag5_starter/tag5_einrichten.py
-python unsere_skripte/tag5_app/check_setup.py
-cd unsere_skripte/tag5_app && opencode          # agent works in this folder; once: /connect → OpenRouter → key
-python scripts/M10_Deployment/tag5_starter/tag5_einrichten.py --messung   # stage 2: rag_core version 2
-streamlit run unsere_skripte/tag5_app/app.py    # from the repo root
+uv run streamlit run app.py
+uv run streamlit run naive_app.py
 ```
 
-No API key, or the network is down? Put `TAG5_MOCK=1` in `.env`. Every stress-test check still works.
+Ohne uv: `pip install -r requirements.txt`, dann `streamlit run app.py`.
 
-## Verified results (mock mode, streamlit 1.60.0, rag_core version 2)
+Den Key findet `rag_core` in der `.env` – in diesem Ordner oder einem darüber (z. B. im Projektordner). Ohne Key antwortet die App simuliert.
 
-| | K1 | K2 | K3 | K4 | B1 | B2 | B3 | B4 | key |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| naive_app | ✗ | n/a | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| fixed_app | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-
-Numbering = `ANLEITUNG.md` (K = core checks, B = bonus; the key search belongs to the deployment step).
-K2 (interrupt) is tested with `trainer/interrupt_test.py` in a real browser; the naive app uses `text_input`, which that script
-doesn't cover. K4 must be tested with two sessions open at the same time - a reload starts a new session and hides the bug.
+Sauberer Testlauf in einer frischen Umgebung (findet fehlende Pakete in `requirements.txt`):
 
 ```bash
-python scripts/M10_Deployment/tag5_starter/trainer/stresstest.py unsere_skripte/tag5_app/naive_app.py
+uv run --isolated --no-project --with-requirements requirements.txt streamlit run app.py
 ```
 
-## Distribution note
+## Deployment auf Streamlit Community Cloud
 
-`git pull` delivers everything to participants. `loesung/` is the solution: commit it after the session,
-or keep it out of the repo until then.
+Pro App einmal **Create app** → Repository, Branch, Entrypoint:
+
+1. `deployment/app.py` – unter **Advanced settings → Secrets**:
+
+   ```toml
+   OPENROUTER_API_KEY = "…"
+   ```
+
+2. `deployment/naive_app.py` – Secrets:
+
+   ```toml
+   RAG_MOCK = "1"
+   ```
+
+Bei beiden unter **Advanced settings** Python 3.12 wählen (damit sind die Versionen in `requirements.txt` getestet).
+
+Ein Push auf den Branch deployt beide Apps neu.
+
+## Deployment-Readiness-Review: Was auf dem Server anders ist
+
+**Secrets**
+- Auf dem Server gibt es keine `.env`. Keys kommen aus den App-Secrets. Secrets auf oberster Ebene stehen in Community Cloud auch als Umgebungsvariablen bereit; von dort liest `rag_core` sie. Das im Probelauf prüfen. Falls es nicht klappt, oben in beiden Apps ergänzen: `os.environ.update({k: str(v) for k, v in st.secrets.items()})`.
+- `.env` und `.streamlit/secrets.toml` sind per `.gitignore` ausgeschlossen. Im Code steht kein Key (Suche nach `sk-` findet nichts).
+
+**Kosten und Zugriff**
+- Die URL ist öffentlich: Jeder, der sie kennt, verbraucht dein Guthaben. Einen Key mit Kreditlimit nehmen, die App in den Sharing-Einstellungen auf eingeladene Personen beschränken und den Key nach dem Workshop rotieren.
+- `naive_app.py` nie mit echtem Key deployen: Alle Besucher teilen sich einen Chat-Verlauf, und „Neuer Chat“ löscht ihn für alle.
+
+**Ein Prozess für alle Nutzer**
+- Alle Besucher laufen im selben Python-Prozess. `st.cache_resource` (der Index) und `rag_core.stats()` gelten für den ganzen Server, `st.session_state` gilt pro Browser-Tab.
+- Die Zähler beginnen nach jedem Neustart wieder bei 0.
+
+**Neustarts, Ruhezustand, Dateisystem**
+- Nach einer Weile ohne Besucher schläft die App ein. Beim Kaltstart wird der Index neu geladen (`RAG_LOAD_DELAY`, Standard 2 s).
+- Was zur Laufzeit geschrieben wird, ist nach einem Neustart weg. Auch die Chat-Verläufe sind dann weg; nur „Chat herunterladen“ sichert sie.
+- Das PDF muss im Repository liegen (`data/`). Ein Index, der nie committet wurde, existiert auf dem Server nicht.
+- Ressourcen sind begrenzt. Für den TF-IDF-Index reicht das, für ein lokales Embedding-Modell nicht unbedingt.
+
+**Abhängigkeiten**
+- Community Cloud sucht die Paketdatei zuerst im Ordner des Entrypoints. Deshalb gilt `deployment/requirements.txt`, nicht `pyproject.toml`/`uv.lock` im Wurzelordner.
+- `langchain-openrouter` und `langchain-anthropic` lädt `rag_core` erst, wenn ein Provider gewählt ist. Beide stehen in `requirements.txt`, damit beide Keys funktionieren.
+
+**Logs**
+- Die Zeilen `[rag_core] INFO llm call #…` erscheinen im Log der App (**Manage app**). Dort sieht man live, wer wie viel kostet.
+

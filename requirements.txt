@@ -1,6 +1,7 @@
-streamlit==1.60.0
-numpy==2.5.1
-pypdf==6.14.2
-python-dotenv==1.2.2
-langchain-openrouter==0.2.7
-langchain-anthropic==1.5.3
+# Nur was app.py, naive_app.py und rag_core.py importieren – Versionen aus dem Projekt-Environment gepinnt.
+streamlit==1.67.0
+numpy==2.5.4
+pypdf==7.1.0
+python-dotenv==1.2.4
+langchain-openrouter==0.2.9
+langchain-anthropic==1.7.10

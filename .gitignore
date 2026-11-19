@@ -1,8 +1,8 @@
-# Secrets: niemals committen
+# Secrets – gehören nie ins Repository
 .env
 .streamlit/secrets.toml
-.DS_Store
 
-# Python-Artefakte
+# Python
 __pycache__/
 *.pyc
+.venv/

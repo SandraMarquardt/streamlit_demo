@@ -1,4 +1,4 @@
-"""rag_core (Version 2, mit Messpunkten) – RAG-Backend für Tag 5: Fragen zu einem PDF beantworten.
+"""rag_core (Version 2, mit Messpunkten) – RAG-Backend für den Workshop: Fragen zu einem PDF beantworten.
 
 Neu in Version 2: stats() und INFO-Zeilen im Terminal. Sonst identisch zu Version 1.
 
@@ -8,16 +8,16 @@ Nicht ändern – nur importieren.
     assistant = rag_core.Assistant()
     print(assistant.ask("Was ist RAG?"))
 
-Retrieval per TF-IDF (numpy), LLM über OpenRouter oder Anthropic (Key aus der .env im Repo-Root).
+Retrieval per TF-IDF (numpy), LLM über OpenRouter oder Anthropic (Key aus der .env im Projektordner).
 Das Modul schreibt INFO-Zeilen ins Terminal.
 
 Umgebungsvariablen (optional, z. B. in der .env):
-    TAG5_MOCK=1              Antworten simulieren statt LLM aufzurufen
-    TAG5_PROVIDER            openrouter | anthropic | mock   (Standard: automatisch)
-    TAG5_OPENROUTER_MODEL    Standard: z-ai/glm-5.3-flash
-    TAG5_ANTHROPIC_MODEL     Standard: claude-haiku-5-5
-    TAG5_LOAD_DELAY          Ladezeit eines Embedding-Modells simulieren, in Sekunden (Standard 2)
-    TAG5_MOCK_DELAY          Antwortzeit im Mock-Modus, in Sekunden (Standard 3)
+    RAG_MOCK=1              Antworten simulieren statt LLM aufzurufen
+    RAG_PROVIDER            openrouter | anthropic | mock   (Standard: automatisch)
+    RAG_OPENROUTER_MODEL    Standard: z-ai/glm-5.3-flash
+    RAG_ANTHROPIC_MODEL     Standard: claude-haiku-5-5
+    RAG_LOAD_DELAY          Ladezeit eines Embedding-Modells simulieren, in Sekunden (Standard 2)
+    RAG_MOCK_DELAY          Antwortzeit im Mock-Modus, in Sekunden (Standard 3)
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ SUMMARY_PROMPT = "Fasse das Dokument in 5 Stichpunkten zusammen."
 
 
 def _load_env() -> Path | None:
-    """Sucht die .env von diesem Ordner aufwärts (also auch die im Repo-Root)."""
+    """Sucht die .env von diesem Ordner aufwärts (also auch die im Projektordner)."""
     for folder in [HERE, *HERE.parents]:
         env_file = folder / ".env"
         if env_file.is_file():
@@ -103,7 +103,7 @@ def _build(pdf_source, name: str) -> Index:
         _stats["index_loads"] += 1
         n = _stats["index_loads"]
     _log(f"index loaded #{n} ({name})")
-    time.sleep(float(os.getenv("TAG5_LOAD_DELAY", "2")))  # simuliert Embedding-Modell laden
+    time.sleep(float(os.getenv("RAG_LOAD_DELAY", "2")))  # simuliert Embedding-Modell laden
 
     reader = PdfReader(pdf_source)
     pages = [(i + 1, p.extract_text() or "") for i, p in enumerate(reader.pages)]
@@ -158,8 +158,8 @@ SYSTEM_PROMPT = (
 
 
 def provider() -> str:
-    forced = os.getenv("TAG5_PROVIDER", "").strip().lower()
-    if os.getenv("TAG5_MOCK") == "1" or forced == "mock":
+    forced = os.getenv("RAG_PROVIDER", "").strip().lower()
+    if os.getenv("RAG_MOCK") == "1" or forced == "mock":
         return "mock"
     if forced in ("openrouter", "anthropic"):
         return forced
@@ -178,12 +178,12 @@ def _get_llm():
             if p == "openrouter":
                 from langchain_openrouter import ChatOpenRouter
 
-                model = os.getenv("TAG5_OPENROUTER_MODEL", "z-ai/glm-5.3-flash")
+                model = os.getenv("RAG_OPENROUTER_MODEL", "z-ai/glm-5.3-flash")
                 _llm = ChatOpenRouter(model=model, temperature=0)
             elif p == "anthropic":
                 from langchain_anthropic import ChatAnthropic
 
-                model = os.getenv("TAG5_ANTHROPIC_MODEL", "claude-haiku-5-5")
+                model = os.getenv("RAG_ANTHROPIC_MODEL", "claude-haiku-5-5")
                 _llm = ChatAnthropic(model=model, temperature=0)
             else:
                 raise RuntimeError("Kein LLM-Provider konfiguriert")
@@ -223,7 +223,7 @@ def _mock_answer(question: str, sources: list[dict]) -> str:
 def _complete(question: str, sources: list[dict], history: list[dict]) -> str:
     _count_call(question)
     if provider() == "mock":
-        time.sleep(float(os.getenv("TAG5_MOCK_DELAY", "3")))
+        time.sleep(float(os.getenv("RAG_MOCK_DELAY", "3")))
         return _mock_answer(question, sources)
     return _text(_get_llm().invoke(_messages(question, sources, history)).content)
 
@@ -232,7 +232,7 @@ def _stream(question: str, sources: list[dict], history: list[dict]) -> Iterator
     _count_call(question)
     if provider() == "mock":
         words = _mock_answer(question, sources).split(" ")
-        delay = float(os.getenv("TAG5_MOCK_DELAY", "3")) / max(len(words), 1)
+        delay = float(os.getenv("RAG_MOCK_DELAY", "3")) / max(len(words), 1)
         for w in words:
             time.sleep(delay)
             yield w + " "
